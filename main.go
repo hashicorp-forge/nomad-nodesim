@@ -36,6 +36,9 @@ func main() {
 	num := 0
 	flag.IntVar(&num, "num", 0, "number of client nodes")
 
+	serverAddr := ""
+	flag.StringVar(&serverAddr, "server", "", "address of server")
+
 	flag.Parse()
 
 	handler := slog.NewTextHandler(os.Stdout)
@@ -61,7 +64,7 @@ func main() {
 	var err error
 	handles := make([]*simnode.Node, num)
 	for i := 0; i < num; i++ {
-		handles[i], err = startClient(i, workDir, logger)
+		handles[i], err = startClient(i, logger, workDir, serverAddr)
 		if err != nil {
 			// Startup errors are fatal
 			err = fmt.Errorf("error creating client %d: %w", i, err)
@@ -110,7 +113,7 @@ func main() {
 	wg.Wait()
 }
 
-func startClient(id int, parentDir string, logger *slog.Logger) (*simnode.Node, error) {
+func startClient(id int, logger *slog.Logger, parentDir, server string) (*simnode.Node, error) {
 	nodeID := fmt.Sprintf("node-%d", id)
 	rootDir := filepath.Join(parentDir, nodeID)
 	if err := os.MkdirAll(rootDir, 0750); err != nil {
@@ -149,7 +152,11 @@ func startClient(id int, parentDir string, logger *slog.Logger) (*simnode.Node, 
 	cfg.MaxKillTimeout = time.Minute
 
 	//FIXME inject servers?
-	cfg.Servers = []string{}
+	if server != "" {
+		cfg.Servers = []string{server}
+	} else {
+		cfg.Servers = []string{}
+	}
 
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
@@ -162,14 +169,13 @@ func startClient(id int, parentDir string, logger *slog.Logger) (*simnode.Node, 
 		SecretID:   nodeID + "secret", //lol
 		Datacenter: "dc1",             //TODO expose option?
 		Name:       nodeID,
-		HTTPAddr:   fmt.Sprintf("http://localhost:4646/%s", nodeID), // is this used?
+		HTTPAddr:   "127.0.0.1:4646", // is this used? -- yes in the UI!
 		TLSEnabled: false,
 		Attributes: map[string]string{}, //TODO expose option? fake linux?
 		NodeResources: &structs.NodeResources{
 			Cpu: structs.NodeCpuResources{
 				CpuShares:          int64(cfg.CpuCompute),
-				TotalCpuCores:      4,
-				ReservableCpuCores: []uint16{0, 1, 2, 3},
+				ReservableCpuCores: []uint16{},
 			},
 			Memory:  structs.NodeMemoryResources{MemoryMB: int64(cfg.MemoryMB)},
 			Disk:    structs.NodeDiskResources{DiskMB: 1_000_000},
@@ -241,6 +247,10 @@ func startClient(id int, parentDir string, logger *slog.Logger) (*simnode.Node, 
 	cfg.PluginLoader = pluginsim.New(logger, "loader")
 	cfg.PluginSingletonLoader = pluginsim.New(logger, "singleton")
 	cfg.StateDBFactory = state.GetStateDBFactory(true) // noop
+
+	//TODO Lots of missing fields <<<
+
+	cfg.NomadServiceDiscovery = true
 
 	cfg.Node.Canonicalize()
 
