@@ -36,7 +36,8 @@ Features that aren't support today but could be:
 - Server mode
 - Task Driver Plugins (or a builtin fake one)
 - Configuration file instead of args
-- Shared HTTP API that uses "?node_id=..." to route requests
+- Add universal "?node_id=..." HTTP API support upstream to route the RPCs to
+  individual Client instances.
 
 ## What Won't Work
 
