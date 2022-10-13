@@ -251,19 +251,24 @@ func startClient(id string, logger *slog.Logger, parentDir, server string) (*sim
 	cfg.RPCHoldTimeout = 5 * time.Second
 	cfg.PluginLoader = pluginsim.New(logger, "loader")
 	cfg.PluginSingletonLoader = pluginsim.New(logger, "singleton")
-	cfg.StateDBFactory = state.GetStateDBFactory(false)
-
-	//TODO Lots of missing fields <<<
-
+	cfg.StateDBFactory = state.GetStateDBFactory(false) // store state!
 	cfg.NomadServiceDiscovery = true
+	//TODO TemplateDialer: could proxy to the server's address?
+	cfg.Artifact = &config.ArtifactConfig{
+		HTTPReadTimout: 5 * time.Second,
+		GCSTimeout:     5 * time.Second,
+		GitTimeout:     5 * time.Second,
+		HgTimeout:      5 * time.Second,
+		S3Timeout:      5 * time.Second,
+	}
 
 	cfg.Node.Canonicalize()
 
+	// Consul support is disabled
 	capi := simconsul.NoopCatalogAPI{}
 	cproxies := simconsul.NoopSupportedProxiesAPI{}
 	serviceReg := simconsul.NoopServiceRegHandler{}
 
-	//TODO overwrite plugins and fingerprinters
 	c, err := client.NewClient(cfg, capi, cproxies, serviceReg, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating client: %w", err)
