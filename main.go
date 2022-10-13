@@ -8,7 +8,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
-	"strconv"
 	"sync"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/hashicorp/nomad/client/config"
 	"github.com/hashicorp/nomad/client/state"
 	"github.com/hashicorp/nomad/helper/pointer"
+	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/hashicorp/nomad/nomad/structs"
 	structsc "github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/hashicorp/nomad/version"
@@ -31,30 +31,33 @@ func main() {
 	defer stop()
 
 	workDir := ""
-	flag.StringVar(&workDir, "dir", "", "working directory")
+	defaultWorkDir := "nomad-nodesim-[pid]"
+	flag.StringVar(&workDir, "dir", defaultWorkDir, "working directory")
 
-	num := 0
-	flag.IntVar(&num, "num", 0, "number of client nodes")
+	num := 1
+	flag.IntVar(&num, "num", num, "number of client nodes")
 
 	serverAddr := ""
-	flag.StringVar(&serverAddr, "server", "", "address of server")
+	flag.StringVar(&serverAddr, "server", "", "address of server's rpc port")
+
+	uniq := ""
+	defaultUniq := "[8 hex chars]"
+	flag.StringVar(&uniq, "id", defaultUniq, "nodes will be named node-[uniq]-[i]")
 
 	flag.Parse()
 
 	handler := slog.NewTextHandler(os.Stdout)
 	logger := slog.New(handler)
 
-	if workDir == "" {
-		fmt.Fprintf(os.Stderr, "-dir must be set\n")
-		flag.Usage()
-		os.Exit(1)
+	if workDir == defaultWorkDir {
+		workDir = fmt.Sprintf("nomad-nodesim-%d", os.Getpid())
 	}
 
-	if num == 0 {
-		fmt.Fprintf(os.Stderr, "-num must be set\n")
-		flag.Usage()
-		os.Exit(1)
+	if uniq == defaultUniq {
+		uniq = uuid.Short()
 	}
+
+	logger.Info("config", "dir", workDir, "num", num, "server", serverAddr, "id", uniq)
 
 	if ctx.Err() != nil {
 		fmt.Fprintf(os.Stderr, "canceled before clients created")
@@ -64,7 +67,8 @@ func main() {
 	var err error
 	handles := make([]*simnode.Node, num)
 	for i := 0; i < num; i++ {
-		handles[i], err = startClient(i, logger, workDir, serverAddr)
+		id := fmt.Sprintf("%s-%d", uniq, i)
+		handles[i], err = startClient(id, logger, workDir, serverAddr)
 		if err != nil {
 			// Startup errors are fatal
 			err = fmt.Errorf("error creating client %d: %w", i, err)
@@ -111,10 +115,11 @@ func main() {
 		}(h)
 	}
 	wg.Wait()
+	logger.Info("done")
 }
 
-func startClient(id int, logger *slog.Logger, parentDir, server string) (*simnode.Node, error) {
-	nodeID := fmt.Sprintf("node-%d", id)
+func startClient(id string, logger *slog.Logger, parentDir, server string) (*simnode.Node, error) {
+	nodeID := fmt.Sprintf("node-%s", id)
 	rootDir := filepath.Join(parentDir, nodeID)
 	if err := os.MkdirAll(rootDir, 0750); err != nil {
 		return nil, fmt.Errorf("error creating client dir: %w", err)
@@ -208,7 +213,7 @@ func startClient(id int, logger *slog.Logger, parentDir, server string) (*simnod
 		Reserved: &structs.Resources{},
 		Links:    map[string]string{},
 		Meta: map[string]string{
-			"simnode_index":   strconv.Itoa(id),
+			"simnode_id":      id,
 			"simnode_enabled": "true",
 			"simnode_version": bi.Main.Version,
 			"simnode_sum":     bi.Main.Sum,
@@ -246,7 +251,7 @@ func startClient(id int, logger *slog.Logger, parentDir, server string) (*simnod
 	cfg.RPCHoldTimeout = 5 * time.Second
 	cfg.PluginLoader = pluginsim.New(logger, "loader")
 	cfg.PluginSingletonLoader = pluginsim.New(logger, "singleton")
-	cfg.StateDBFactory = state.GetStateDBFactory(true) // noop
+	cfg.StateDBFactory = state.GetStateDBFactory(false)
 
 	//TODO Lots of missing fields <<<
 
