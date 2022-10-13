@@ -240,8 +240,8 @@ func startClient(id string, logger *slog.Logger, parentDir, server string) (*sim
 	cfg.TLSConfig = &structsc.TLSConfig{}
 	cfg.GCInterval = time.Hour
 	cfg.GCParallelDestroys = 1
-	cfg.GCDiskUsageThreshold = 1.0
-	cfg.GCInodeUsageThreshold = 1.0
+	cfg.GCDiskUsageThreshold = 100.0
+	cfg.GCInodeUsageThreshold = 100.0
 	cfg.GCMaxAllocs = 10_000
 	cfg.NoHostUUID = true
 	cfg.ACLEnabled = false //TODO expose option
