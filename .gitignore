@@ -13,3 +13,6 @@
 *.out
 
 nomad-nodesim*
+terraform/.terraform*
+terraform/*.auto.tfvars
+terraform/*.tfstate*

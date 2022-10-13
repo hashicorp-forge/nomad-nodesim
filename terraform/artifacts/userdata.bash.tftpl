@@ -1,0 +1,30 @@
+#!/bin/bash
+
+set -x
+
+LOCAL_IPV4=$(curl "http://169.254.169.254/latest/meta-data/local-ipv4")
+echo "LOCAL_IPV4=$${LOCAL_IPV4}"
+
+cat << EOF >/etc/nomad.d/advertise.hcl
+advertise {
+  http = "[$${LOCAL_IPV4}]:4646"
+  rpc  = "[$${LOCAL_IPV4}]:4647"
+  serf = "[$${LOCAL_IPV4}]:4648"
+}
+EOF
+
+%{ if server ~}
+cat << EOF >/etc/nomad.d/server.hcl
+${ server_hcl }
+EOF
+%{ endif ~}
+
+%{ if client ~}
+cat << EOF >/etc/nomad.d/client.hcl
+${ client_hcl }
+EOF
+
+# Enable docker
+systemctl enable docker.service
+systemctl start docker.service
+%{ endif ~}
