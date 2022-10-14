@@ -33,6 +33,7 @@ Also a useful exploration of how pluggable the client is.
 
 Features that aren't support today but could be:
 
+- Replace `Config.RPCHandler` with a simulated network stack
 - Server mode
 - Task Driver Plugins (or a builtin fake one)
 - Configuration file instead of args

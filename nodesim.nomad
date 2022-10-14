@@ -10,7 +10,7 @@ job "nodesim" {
   datacenters = ["dc1"]
 
   group "nodesim" {
-    count = 50
+    count = 20
 
     update {
       max_parallel = 3
@@ -34,8 +34,8 @@ job "nodesim" {
       }
 
       resources {
-        cpu    = 400
-        memory = 300
+        cpu    = 500
+        memory = 500
       }
     }
   }

@@ -7,3 +7,8 @@ server {
     retry_join = [ "provider=aws tag_key=AutoJoin tag_value=nomad addr_type=private_v4" ]
   }
 }
+
+limits {
+  http_max_conns_per_client = 0
+  rpc_max_conns_per_client  = 0
+}
