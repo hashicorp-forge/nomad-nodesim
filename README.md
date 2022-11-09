@@ -17,6 +17,11 @@ See `terraform` for some of the worst Packer and Terraform code you have ever
 seen. Should provision a working Nomad cluster (in AWS us-west-2) to run
 `nodesim.nomad`.
 
+## Gotchas
+
+- Disable limits! Otherwise you won't scale far: https://developer.hashicorp.com/nomad/docs/configuration#limits
+- If Consul is running it may try to perform 1 health check per virtual node against the *real* nodes which... can get a little intense.
+
 ## Why?
 
 To simulate clusters orders of magnitude larger than the number of physical
