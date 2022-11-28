@@ -168,6 +168,13 @@ func startClient(id string, logger *slog.Logger, parentDir, server string) (*sim
 		return nil, fmt.Errorf("unable to read build info")
 	}
 
+	tlsConfig := tlsConfigFromEnv()
+	tlsEnabled := true
+	if tlsConfig == nil {
+		tlsConfig = &structsc.TLSConfig{}
+		tlsEnabled = false
+	}
+
 	//TODO
 	cfg.Node = &structs.Node{
 		ID:         nodeID,
@@ -175,7 +182,7 @@ func startClient(id string, logger *slog.Logger, parentDir, server string) (*sim
 		Datacenter: "dc1",             //TODO expose option?
 		Name:       nodeID,
 		HTTPAddr:   "127.0.0.1:4646", // is this used? -- yes in the UI!
-		TLSEnabled: false,
+		TLSEnabled: tlsEnabled,
 		Attributes: map[string]string{}, //TODO expose option? fake linux?
 		NodeResources: &structs.NodeResources{
 			Cpu: structs.NodeCpuResources{
@@ -237,7 +244,7 @@ func startClient(id string, logger *slog.Logger, parentDir, server string) (*sim
 	cfg.ConsulConfig = &structsc.ConsulConfig{}
 	cfg.VaultConfig = &structsc.VaultConfig{Enabled: pointer.Of(false)}
 	cfg.StatsCollectionInterval = 10 * time.Second
-	cfg.TLSConfig = &structsc.TLSConfig{}
+	cfg.TLSConfig = tlsConfig
 	cfg.GCInterval = time.Hour
 	cfg.GCParallelDestroys = 1
 	cfg.GCDiskUsageThreshold = 100.0
@@ -255,11 +262,11 @@ func startClient(id string, logger *slog.Logger, parentDir, server string) (*sim
 	cfg.NomadServiceDiscovery = true
 	//TODO TemplateDialer: could proxy to the server's address?
 	cfg.Artifact = &config.ArtifactConfig{
-		HTTPReadTimout: 5 * time.Second,
-		GCSTimeout:     5 * time.Second,
-		GitTimeout:     5 * time.Second,
-		HgTimeout:      5 * time.Second,
-		S3Timeout:      5 * time.Second,
+		HTTPReadTimeout: 5 * time.Second,
+		GCSTimeout:      5 * time.Second,
+		GitTimeout:      5 * time.Second,
+		HgTimeout:       5 * time.Second,
+		S3Timeout:       5 * time.Second,
 	}
 
 	cfg.Node.Canonicalize()
@@ -274,4 +281,25 @@ func startClient(id string, logger *slog.Logger, parentDir, server string) (*sim
 		return nil, fmt.Errorf("error creating client: %w", err)
 	}
 	return simnode.New(c, logger), nil
+}
+
+func tlsConfigFromEnv() *structsc.TLSConfig {
+
+	caCertFile := os.Getenv("NOMAD_CACERT")
+	certFile := os.Getenv("NOMAD_CLIENT_CERT")
+	keyFile := os.Getenv("NOMAD_CLIENT_KEY")
+
+	if certFile == "" || caCertFile == "" || keyFile == "" {
+		return nil
+	}
+
+	return &structsc.TLSConfig{
+		EnableHTTP:           true,
+		EnableRPC:            true,
+		VerifyServerHostname: true,
+		VerifyHTTPSClient:    true,
+		CAFile:               caCertFile,
+		CertFile:             certFile,
+		KeyFile:              keyFile,
+	}
 }
