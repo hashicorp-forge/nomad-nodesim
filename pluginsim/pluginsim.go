@@ -1,40 +1,82 @@
 package pluginsim
 
 import (
+	"fmt"
+
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-plugin"
+	"github.com/hashicorp/nomad/helper/pluginutils/catalog"
 	"github.com/hashicorp/nomad/helper/pluginutils/loader"
-	"github.com/hashicorp/nomad/plugins/base"
-	"golang.org/x/exp/slog"
 )
 
-type PluginCatalog struct {
-	logger *slog.Logger
-	name   string
-}
+func New(logger hclog.Logger, name string) *loader.PluginLoader {
 
-func New(pl *slog.Logger, name string) *PluginCatalog {
-	return &PluginCatalog{
-		logger: pl.With("plugincat", name),
-		name:   name,
+	loader, err := setupPluginLoader(logger)
+	if err != nil {
+		panic(err)
 	}
+	return loader
 }
 
-// Dispense returns the plugin given its name and type. This will also
-// configure the plugin
-func (c *PluginCatalog) Dispense(name, pluginType string, config *base.AgentConfig, logger hclog.Logger) (loader.PluginInstance, error) {
-	c.logger.Debug("Dispense()", "name", name, "type", pluginType, "config", config, "logger", logger, "p", c)
-	panic("not implemented")
+// setupPlugins is used to setup the plugin loaders.
+func setupPluginLoader(logger hclog.Logger) (*loader.PluginLoader, error) {
+	// Get our internal plugins
+	internal, err := internalPluginConfigs(logger)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build the plugin loader
+	config := &loader.PluginLoaderConfig{
+		Logger:            logger,
+		InternalPlugins:   internal,
+		SupportedVersions: loader.AgentSupportedApiVersions,
+	}
+	l, err := loader.NewPluginLoader(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create plugin loader: %v", err)
+	}
+
+	for k, plugins := range l.Catalog() {
+		for _, p := range plugins {
+			logger.Info("detected plugin", "name", p.Name, "type", k, "plugin_version", p.PluginVersion)
+		}
+	}
+
+	return l, nil
 }
 
-// Reattach is used to reattach to a previously launched external plugin.
-func (c *PluginCatalog) Reattach(name, pluginType string, config *plugin.ReattachConfig) (loader.PluginInstance, error) {
-	c.logger.Debug("Reattach()", "name", name, "type", pluginType, "config", config, "p", c)
-	panic("not implemented")
-}
+func internalPluginConfigs(logger hclog.Logger) (map[loader.PluginID]*loader.InternalPluginConfig, error) {
+	// Get the registered plugins
+	// TODO: can we drop all the non-mock drivers here?
+	catalog := catalog.Catalog()
 
-// Catalog returns the catalog of all plugins keyed by plugin type
-func (c *PluginCatalog) Catalog() map[string][]*base.PluginInfoResponse {
-	c.logger.Debug("Catalog()", "p", c)
-	return map[string][]*base.PluginInfoResponse{}
+	// Create our map of plugins
+	internal := make(map[loader.PluginID]*loader.InternalPluginConfig, len(catalog))
+
+	// Provide an empty plugin options map
+	var options map[string]string
+
+	for id, reg := range catalog {
+		if reg.Config == nil {
+			logger.Error("skipping loading internal plugin because it is missing its configuration", "plugin", id)
+			continue
+		}
+
+		pluginConfig := reg.Config.Config
+		if reg.ConfigLoader != nil {
+			pc, err := reg.ConfigLoader(options)
+			if err != nil {
+				return nil, fmt.Errorf("failed to retrieve config for internal plugin %v: %v", id, err)
+			}
+
+			pluginConfig = pc
+		}
+
+		internal[id] = &loader.InternalPluginConfig{
+			Factory: reg.Config.Factory,
+			Config:  pluginConfig,
+		}
+	}
+
+	return internal, nil
 }

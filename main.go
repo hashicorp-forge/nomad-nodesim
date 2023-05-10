@@ -15,11 +15,13 @@ import (
 	"github.com/hashicorp/nomad/client"
 	"github.com/hashicorp/nomad/client/config"
 	"github.com/hashicorp/nomad/client/state"
+	"github.com/hashicorp/nomad/helper/pluginutils/singleton"
 	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/hashicorp/nomad/nomad/structs"
 	structsc "github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/hashicorp/nomad/version"
+	"github.com/schmichael/nomad-nodesim/allocrunnersim"
 	"github.com/schmichael/nomad-nodesim/pluginsim"
 	"github.com/schmichael/nomad-nodesim/simconsul"
 	"github.com/schmichael/nomad-nodesim/simnode"
@@ -256,8 +258,11 @@ func startClient(id string, logger *slog.Logger, parentDir, server string) (*sim
 	cfg.ACLPolicyTTL = time.Hour
 	cfg.DisableRemoteExec = true
 	cfg.RPCHoldTimeout = 5 * time.Second
-	cfg.PluginLoader = pluginsim.New(logger, "loader")
-	cfg.PluginSingletonLoader = pluginsim.New(logger, "singleton")
+
+	pluginLoader := pluginsim.New(cfg.Logger, "loader")
+	cfg.PluginLoader = pluginLoader
+	cfg.PluginSingletonLoader = singleton.NewSingletonLoader(cfg.Logger, pluginLoader)
+
 	cfg.StateDBFactory = state.GetStateDBFactory(false) // store state!
 	cfg.NomadServiceDiscovery = true
 	//TODO TemplateDialer: could proxy to the server's address?
@@ -270,6 +275,7 @@ func startClient(id string, logger *slog.Logger, parentDir, server string) (*sim
 	}
 
 	cfg.Node.Canonicalize()
+	cfg.AllocRunnerFactory = allocrunnersim.NewEmptyAllocRunnerFunc
 
 	// Consul support is disabled
 	capi := simconsul.NoopCatalogAPI{}
@@ -280,6 +286,7 @@ func startClient(id string, logger *slog.Logger, parentDir, server string) (*sim
 	if err != nil {
 		return nil, fmt.Errorf("error creating client: %w", err)
 	}
+
 	return simnode.New(c, logger), nil
 }
 

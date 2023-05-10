@@ -16,3 +16,5 @@ nomad-nodesim*
 terraform/.terraform*
 terraform/*.auto.tfvars
 terraform/*.tfstate*
+go.work
+go.work.sum
