@@ -1,6 +1,6 @@
 module github.com/schmichael/nomad-nodesim
 
-go 1.19
+go 1.20
 
 require (
 	github.com/hashicorp/consul/api v1.15.2
