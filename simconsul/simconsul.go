@@ -2,6 +2,7 @@ package simconsul
 
 import (
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/nomad/client/consul"
 	"github.com/hashicorp/nomad/client/serviceregistration"
 )
 
@@ -21,6 +22,8 @@ type NoopSupportedProxiesAPI struct{}
 func (NoopSupportedProxiesAPI) Proxies() (map[string][]string, error) {
 	return map[string][]string{}, nil
 }
+
+type NOOPSupportedProxiesAPIFunc func(string) consul.SupportedProxiesAPI
 
 // NoopServiceRegHandler implements github.com/hashicorp/nomad/client/serviceregistration.Handler
 type NoopServiceRegHandler struct{}

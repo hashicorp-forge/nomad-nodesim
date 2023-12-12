@@ -188,6 +188,10 @@ func (ar *simulatedAllocRunner) GetTaskDriverCapabilities(taskName string) (*dri
 	return nil, nil
 }
 
+func (ar *simulatedAllocRunner) GetUpdatePriority(_ *structs.Allocation) cstructs.AllocUpdatePriority {
+	return 0
+}
+
 func (ar *simulatedAllocRunner) StatsReporter() interfaces.AllocStatsReporter { return ar }
 func (ar *simulatedAllocRunner) Listener() *cstructs.AllocListener            { return nil }
 func (ar *simulatedAllocRunner) GetAllocDir() *allocdir.AllocDir              { return nil }

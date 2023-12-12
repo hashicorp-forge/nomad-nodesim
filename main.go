@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad/client"
 	"github.com/hashicorp/nomad/client/config"
+	"github.com/hashicorp/nomad/client/consul"
 	"github.com/hashicorp/nomad/client/state"
 	"github.com/hashicorp/nomad/helper/pluginutils/singleton"
 	"github.com/hashicorp/nomad/helper/pointer"
@@ -48,7 +49,7 @@ func main() {
 
 	flag.Parse()
 
-	handler := slog.NewTextHandler(os.Stdout)
+	handler := slog.NewTextHandler(os.Stdout, nil)
 	logger := slog.New(handler)
 
 	if workDir == defaultWorkDir {
@@ -187,7 +188,7 @@ func startClient(id string, logger *slog.Logger, parentDir, server string) (*sim
 		TLSEnabled: tlsEnabled,
 		Attributes: map[string]string{}, //TODO expose option? fake linux?
 		NodeResources: &structs.NodeResources{
-			Cpu: structs.NodeCpuResources{
+			Cpu: structs.LegacyNodeCpuResources{
 				CpuShares:          int64(cfg.CpuCompute),
 				ReservableCpuCores: []uint16{},
 			},
@@ -243,8 +244,8 @@ func startClient(id string, logger *slog.Logger, parentDir, server string) (*sim
 		Revision: bi.Main.Sum,
 		Version:  bi.Main.Version,
 	}
-	cfg.ConsulConfig = &structsc.ConsulConfig{}
-	cfg.VaultConfig = &structsc.VaultConfig{Enabled: pointer.Of(false)}
+	cfg.ConsulConfigs = map[string]*structsc.ConsulConfig{structs.ConsulDefaultCluster: structsc.DefaultConsulConfig()}
+	cfg.VaultConfigs = map[string]*structsc.VaultConfig{structs.VaultDefaultCluster: {Enabled: pointer.Of(false)}}
 	cfg.StatsCollectionInterval = 10 * time.Second
 	cfg.TLSConfig = tlsConfig
 	cfg.GCInterval = time.Hour
@@ -279,10 +280,11 @@ func startClient(id string, logger *slog.Logger, parentDir, server string) (*sim
 
 	// Consul support is disabled
 	capi := simconsul.NoopCatalogAPI{}
-	cproxies := simconsul.NoopSupportedProxiesAPI{}
+	consulProxies := map[string]simconsul.NoopSupportedProxiesAPI{}
+	cproxiesFn := func(cluster string) consul.SupportedProxiesAPI { return consulProxies[cluster] }
 	serviceReg := simconsul.NoopServiceRegHandler{}
 
-	c, err := client.NewClient(cfg, capi, cproxies, serviceReg, nil)
+	c, err := client.NewClient(cfg, capi, cproxiesFn, serviceReg, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating client: %w", err)
 	}
