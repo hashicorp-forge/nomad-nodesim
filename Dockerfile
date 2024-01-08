@@ -1,10 +1,20 @@
 # Copyright (c) HashiCorp, Inc.
 # SPDX-License-Identifier: MPL-2.0
 
-FROM golang:1.19
-RUN apt update
-RUN apt install -y iproute2
+# devbuild compiles the binary
+# -----------------------------------
+FROM golang:1.21 AS devbuild
+
 WORKDIR /build
 COPY . ./
 ENV CGO_ENABLED=1
-RUN go build
+RUN go build -o nomad-nodesim .
+
+# dev runs the binary from devbuild
+# -----------------------------------
+FROM debian:stable AS dev
+
+RUN apt update
+RUN apt install -y iproute2
+
+COPY --from=devbuild /build/nomad-nodesim /bin/
