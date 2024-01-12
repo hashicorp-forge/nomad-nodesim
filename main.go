@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime/debug"
 	"sync"
 	"time"
 
@@ -26,6 +25,7 @@ import (
 	structsc "github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/hashicorp/nomad/version"
 	"github.com/schmichael/nomad-nodesim/allocrunnersim"
+	internalSimnode "github.com/schmichael/nomad-nodesim/internal/simnode"
 	"github.com/schmichael/nomad-nodesim/pluginsim"
 	"github.com/schmichael/nomad-nodesim/simconsul"
 	"github.com/schmichael/nomad-nodesim/simnode"
@@ -70,11 +70,16 @@ func main() {
 		os.Exit(2)
 	}
 
-	var err error
+	buildInfo, err := internalSimnode.GenerateBuildInfo(logger)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "failed to generate build info: %w", err)
+		os.Exit(2)
+	}
+
 	handles := make([]*simnode.Node, num)
 	for i := 0; i < num; i++ {
 		id := fmt.Sprintf("%s-%d", uniq, i)
-		handles[i], err = startClient(id, logger, workDir, serverAddr)
+		handles[i], err = startClient(id, logger, workDir, serverAddr, buildInfo)
 		if err != nil {
 			// Startup errors are fatal
 			err = fmt.Errorf("error creating client %d: %w", i, err)
@@ -124,7 +129,7 @@ func main() {
 	logger.Info("done")
 }
 
-func startClient(id string, logger *slog.Logger, parentDir, server string) (*simnode.Node, error) {
+func startClient(id string, logger *slog.Logger, parentDir, server string, buildInfo *internalSimnode.BuildInfo) (*simnode.Node, error) {
 	nodeID := fmt.Sprintf("node-%s", id)
 	rootDir := filepath.Join(parentDir, nodeID)
 	if err := os.MkdirAll(rootDir, 0750); err != nil {
@@ -167,11 +172,6 @@ func startClient(id string, logger *slog.Logger, parentDir, server string) (*sim
 		cfg.Servers = []string{server}
 	} else {
 		cfg.Servers = []string{}
-	}
-
-	bi, ok := debug.ReadBuildInfo()
-	if !ok {
-		return nil, fmt.Errorf("unable to read build info")
 	}
 
 	tlsConfig := tlsConfigFromEnv()
@@ -228,8 +228,8 @@ func startClient(id string, logger *slog.Logger, parentDir, server string) (*sim
 		Meta: map[string]string{
 			"simnode_id":      id,
 			"simnode_enabled": "true",
-			"simnode_version": bi.Main.Version,
-			"simnode_sum":     bi.Main.Sum,
+			"simnode_version": buildInfo.Version,
+			"simnode_sum":     buildInfo.Sum,
 		},
 		//TODO NodeClass expose option?
 		CSIControllerPlugins: make(map[string]*structs.CSIInfo),
@@ -244,8 +244,7 @@ func startClient(id string, logger *slog.Logger, parentDir, server string) (*sim
 	cfg.ChrootEnv = map[string]string{}
 	cfg.Options = map[string]string{}
 	cfg.Version = &version.VersionInfo{
-		Revision: bi.Main.Sum,
-		Version:  bi.Main.Version,
+		Version: buildInfo.Nomad.Version,
 	}
 	cfg.ConsulConfigs = map[string]*structsc.ConsulConfig{structs.ConsulDefaultCluster: structsc.DefaultConsulConfig()}
 	cfg.VaultConfigs = map[string]*structsc.VaultConfig{structs.VaultDefaultCluster: {Enabled: pointer.Of(false)}}
