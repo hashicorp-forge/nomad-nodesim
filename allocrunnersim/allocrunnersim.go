@@ -192,7 +192,7 @@ func (ar *simulatedAllocRunner) GetTaskDriverCapabilities(taskName string) (*dri
 }
 
 func (ar *simulatedAllocRunner) GetUpdatePriority(_ *structs.Allocation) cstructs.AllocUpdatePriority {
-	return 0
+	return 1
 }
 
 func (ar *simulatedAllocRunner) StatsReporter() interfaces.AllocStatsReporter { return ar }
