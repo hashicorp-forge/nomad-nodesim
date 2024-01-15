@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/nomad/drivers/mock"
 	"github.com/hashicorp/nomad/helper/pluginutils/catalog"
 	"github.com/hashicorp/nomad/helper/pluginutils/loader"
 )
@@ -49,17 +50,24 @@ func setupPluginLoader(logger hclog.Logger) (*loader.PluginLoader, error) {
 }
 
 func internalPluginConfigs(logger hclog.Logger) (map[loader.PluginID]*loader.InternalPluginConfig, error) {
-	// Get the registered plugins
-	// TODO: can we drop all the non-mock drivers here?
-	catalog := catalog.Catalog()
+
+	// The simulated nodes are not expected to run any real work, but having a
+	// mock driver available is very useful for testing. We therefore generate
+	// our own plugin catalog, which currently just contains the mock driver
+	// plugin.
+	pluginCatalog := map[loader.PluginID]*catalog.Registration{
+		mock.PluginID: {
+			Config: mock.PluginConfig,
+		},
+	}
 
 	// Create our map of plugins
-	internal := make(map[loader.PluginID]*loader.InternalPluginConfig, len(catalog))
+	internal := make(map[loader.PluginID]*loader.InternalPluginConfig, 1)
 
 	// Provide an empty plugin options map
 	var options map[string]string
 
-	for id, reg := range catalog {
+	for id, reg := range pluginCatalog {
 		if reg.Config == nil {
 			logger.Error("skipping loading internal plugin because it is missing its configuration", "plugin", id)
 			continue
