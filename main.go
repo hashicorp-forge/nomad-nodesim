@@ -13,6 +13,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp-forge/nomad-nodesim/allocrunnersim"
+	internalConfig "github.com/hashicorp-forge/nomad-nodesim/internal/config"
+	internalSimnode "github.com/hashicorp-forge/nomad-nodesim/internal/simnode"
+	"github.com/hashicorp-forge/nomad-nodesim/pluginsim"
+	"github.com/hashicorp-forge/nomad-nodesim/simconsul"
+	"github.com/hashicorp-forge/nomad-nodesim/simnode"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad/client"
 	"github.com/hashicorp/nomad/client/config"
@@ -23,12 +29,6 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 	structsc "github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/hashicorp/nomad/version"
-	"github.com/schmichael/nomad-nodesim/allocrunnersim"
-	internalConfig "github.com/schmichael/nomad-nodesim/internal/config"
-	internalSimnode "github.com/schmichael/nomad-nodesim/internal/simnode"
-	"github.com/schmichael/nomad-nodesim/pluginsim"
-	"github.com/schmichael/nomad-nodesim/simconsul"
-	"github.com/schmichael/nomad-nodesim/simnode"
 	"golang.org/x/exp/slog"
 )
 
