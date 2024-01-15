@@ -20,11 +20,11 @@ import (
 	"github.com/hashicorp/nomad/client/state"
 	"github.com/hashicorp/nomad/helper/pluginutils/singleton"
 	"github.com/hashicorp/nomad/helper/pointer"
-	"github.com/hashicorp/nomad/helper/uuid"
 	"github.com/hashicorp/nomad/nomad/structs"
 	structsc "github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/hashicorp/nomad/version"
 	"github.com/schmichael/nomad-nodesim/allocrunnersim"
+	internalConfig "github.com/schmichael/nomad-nodesim/internal/config"
 	internalSimnode "github.com/schmichael/nomad-nodesim/internal/simnode"
 	"github.com/schmichael/nomad-nodesim/pluginsim"
 	"github.com/schmichael/nomad-nodesim/simconsul"
@@ -36,34 +36,40 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	workDir := ""
-	defaultWorkDir := "nomad-nodesim-[pid]"
-	flag.StringVar(&workDir, "dir", defaultWorkDir, "working directory")
+	var flagConfig internalConfig.Config
 
-	num := 1
-	flag.IntVar(&num, "num", num, "number of client nodes")
+	flag.StringVar(&flagConfig.WorkDir, "work-dir", "", "working directory")
+	flag.StringVar(&flagConfig.ServerAddr, "server-addr", "", "address of server's rpc port")
+	flag.StringVar(&flagConfig.NodeNamePrefix, "node-name-prefix", "", "nodes will be named [prefix]-[i]")
+	flag.IntVar(&flagConfig.NodeNum, "node-num", 0, "number of client nodes")
 
-	serverAddr := ""
-	flag.StringVar(&serverAddr, "server", "", "address of server's rpc port")
-
-	uniq := ""
-	defaultUniq := "[8 hex chars]"
-	flag.StringVar(&uniq, "id", defaultUniq, "nodes will be named node-[uniq]-[i]")
+	var configFile string
+	flag.StringVar(&configFile, "config", "", "path to a config file to load")
 
 	flag.Parse()
+
+	// Instantiate our initial default config. This will be used to overlay all
+	// other configs, starting with any supplied config file, then the CLI
+	// flags.
+	mergedConfig := internalConfig.Default()
+
+	if configFile != "" {
+		parsedConfigFile, err := internalConfig.ParseFile(configFile)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "failed parse config file: %s", err)
+			os.Exit(2)
+		}
+		mergedConfig = mergedConfig.Merge(parsedConfigFile)
+	}
+
+	mergedConfig = mergedConfig.Merge(&flagConfig)
 
 	handler := slog.NewTextHandler(os.Stdout, nil)
 	logger := slog.New(handler)
 
-	if workDir == defaultWorkDir {
-		workDir = fmt.Sprintf("nomad-nodesim-%d", os.Getpid())
-	}
-
-	if uniq == defaultUniq {
-		uniq = uuid.Short()
-	}
-
-	logger.Info("config", "dir", workDir, "num", num, "server", serverAddr, "id", uniq)
+	logger.Info("config",
+		"dir", mergedConfig.WorkDir, "num", mergedConfig.NodeNum, "server", mergedConfig.ServerAddr,
+		"id", mergedConfig.NodeNamePrefix)
 
 	if ctx.Err() != nil {
 		fmt.Fprintf(os.Stderr, "canceled before clients created")
@@ -76,16 +82,15 @@ func main() {
 		os.Exit(2)
 	}
 
-	handles := make([]*simnode.Node, num)
-	for i := 0; i < num; i++ {
-		id := fmt.Sprintf("%s-%d", uniq, i)
-		handles[i], err = startClient(id, logger, workDir, serverAddr, buildInfo)
+	handles := make([]*simnode.Node, mergedConfig.NodeNum)
+	for i := 0; i < mergedConfig.NodeNum; i++ {
+		handles[i], err = startClient(logger, buildInfo, mergedConfig, i)
 		if err != nil {
 			// Startup errors are fatal
 			err = fmt.Errorf("error creating client %d: %w", i, err)
 			break
 		}
-		logger.Info("started", "i", i, "total", num)
+		logger.Info("started", "i", i, "total", mergedConfig.NodeNum)
 		if err = ctx.Err(); err != nil {
 			break
 		}
@@ -129,9 +134,9 @@ func main() {
 	logger.Info("done")
 }
 
-func startClient(id string, logger *slog.Logger, parentDir, server string, buildInfo *internalSimnode.BuildInfo) (*simnode.Node, error) {
-	nodeID := fmt.Sprintf("node-%s", id)
-	rootDir := filepath.Join(parentDir, nodeID)
+func startClient(logger *slog.Logger, buildInfo *internalSimnode.BuildInfo, cfg *internalConfig.Config, iter int) (*simnode.Node, error) {
+	nodeID := fmt.Sprintf("%s-%v", cfg.NodeNamePrefix, iter)
+	rootDir := filepath.Join(cfg.WorkDir, nodeID)
 	if err := os.MkdirAll(rootDir, 0750); err != nil {
 		return nil, fmt.Errorf("error creating client dir: %w", err)
 	}
@@ -140,11 +145,11 @@ func startClient(id string, logger *slog.Logger, parentDir, server string, build
 		return nil, fmt.Errorf("error creating log output: %w", err)
 	}
 
-	cfg := config.DefaultConfig()
-	cfg.DevMode = false
-	cfg.EnableDebug = true
-	cfg.StateDir = filepath.Join(rootDir, "state")
-	cfg.AllocDir = filepath.Join(rootDir, "allocs")
+	clientCfg := config.DefaultConfig()
+	clientCfg.DevMode = false
+	clientCfg.EnableDebug = true
+	clientCfg.StateDir = filepath.Join(rootDir, "state")
+	clientCfg.AllocDir = filepath.Join(rootDir, "allocs")
 
 	hclogopts := &hclog.LoggerOptions{
 		Name:            nodeID,
@@ -156,22 +161,22 @@ func startClient(id string, logger *slog.Logger, parentDir, server string, build
 		TimeFormat:      "2006-01-02T15:04:05Z07:00.000", //TODO expose option?
 		Color:           hclog.ColorOff,
 	}
-	cfg.Logger = hclog.NewInterceptLogger(hclogopts)
-	//TODO cfg.Region
+	clientCfg.Logger = hclog.NewInterceptLogger(hclogopts)
+	clientCfg.Region = cfg.Node.Region
 	//TODO cfg.NetworkInterface
 
 	// Fake resources
-	cfg.NetworkSpeed = 1_000
-	cfg.CpuCompute = 10_000
-	cfg.MemoryMB = 10_000
+	clientCfg.NetworkSpeed = 1_000
+	clientCfg.CpuCompute = 10_000
+	clientCfg.MemoryMB = 10_000
 
-	cfg.MaxKillTimeout = time.Minute
+	clientCfg.MaxKillTimeout = time.Minute
 
 	//FIXME inject servers?
-	if server != "" {
-		cfg.Servers = []string{server}
+	if cfg.ServerAddr != "" {
+		clientCfg.Servers = []string{cfg.ServerAddr}
 	} else {
-		cfg.Servers = []string{}
+		clientCfg.Servers = []string{}
 	}
 
 	tlsConfig := tlsConfigFromEnv()
@@ -182,20 +187,21 @@ func startClient(id string, logger *slog.Logger, parentDir, server string, build
 	}
 
 	//TODO
-	cfg.Node = &structs.Node{
+	clientCfg.Node = &structs.Node{
 		ID:         nodeID,
 		SecretID:   nodeID + "secret", //lol
-		Datacenter: "dc1",             //TODO expose option?
+		Datacenter: cfg.Node.Datacenter,
 		Name:       nodeID,
+		NodePool:   cfg.Node.NodePool,
 		HTTPAddr:   "127.0.0.1:4646", // is this used? -- yes in the UI!
 		TLSEnabled: tlsEnabled,
 		Attributes: map[string]string{}, //TODO expose option? fake linux?
 		NodeResources: &structs.NodeResources{
 			Cpu: structs.LegacyNodeCpuResources{
-				CpuShares:          int64(cfg.CpuCompute),
+				CpuShares:          int64(clientCfg.CpuCompute),
 				ReservableCpuCores: []uint16{},
 			},
-			Memory:  structs.NodeMemoryResources{MemoryMB: int64(cfg.MemoryMB)},
+			Memory:  structs.NodeMemoryResources{MemoryMB: int64(clientCfg.MemoryMB)},
 			Disk:    structs.NodeDiskResources{DiskMB: 1_000_000},
 			Devices: []*structs.NodeDeviceResource{},
 			NodeNetworks: []*structs.NodeNetworkResource{
@@ -226,7 +232,7 @@ func startClient(id string, logger *slog.Logger, parentDir, server string, build
 		Reserved: &structs.Resources{},
 		Links:    map[string]string{},
 		Meta: map[string]string{
-			"simnode_id":      id,
+			"simnode_id":      cfg.NodeNamePrefix,
 			"simnode_enabled": "true",
 			"simnode_version": buildInfo.Version,
 			"simnode_sum":     buildInfo.Sum,
@@ -237,39 +243,39 @@ func startClient(id string, logger *slog.Logger, parentDir, server string, build
 		HostVolumes:          make(map[string]*structs.ClientHostVolumeConfig),
 		HostNetworks:         make(map[string]*structs.ClientHostNetworkConfig),
 	}
-	cfg.ClientMinPort = 3001  // ¯\_(ツ)_/¯
-	cfg.ClientMaxPort = 4000  // ¯\_(ツ)_/¯
-	cfg.MinDynamicPort = 5001 // ¯\_(ツ)_/¯
-	cfg.MaxDynamicPort = 6000 // ¯\_(ツ)_/¯
-	cfg.ChrootEnv = map[string]string{}
-	cfg.Options = map[string]string{}
-	cfg.Version = &version.VersionInfo{
+	clientCfg.ClientMinPort = 3001  // ¯\_(ツ)_/¯
+	clientCfg.ClientMaxPort = 4000  // ¯\_(ツ)_/¯
+	clientCfg.MinDynamicPort = 5001 // ¯\_(ツ)_/¯
+	clientCfg.MaxDynamicPort = 6000 // ¯\_(ツ)_/¯
+	clientCfg.ChrootEnv = map[string]string{}
+	clientCfg.Options = cfg.Node.Options
+	clientCfg.Version = &version.VersionInfo{
 		Version: buildInfo.Nomad.Version,
 	}
-	cfg.ConsulConfigs = map[string]*structsc.ConsulConfig{structs.ConsulDefaultCluster: structsc.DefaultConsulConfig()}
-	cfg.VaultConfigs = map[string]*structsc.VaultConfig{structs.VaultDefaultCluster: {Enabled: pointer.Of(false)}}
-	cfg.StatsCollectionInterval = 10 * time.Second
-	cfg.TLSConfig = tlsConfig
-	cfg.GCInterval = time.Hour
-	cfg.GCParallelDestroys = 1
-	cfg.GCDiskUsageThreshold = 100.0
-	cfg.GCInodeUsageThreshold = 100.0
-	cfg.GCMaxAllocs = 10_000
-	cfg.NoHostUUID = true
-	cfg.ACLEnabled = false //TODO expose option
-	cfg.ACLTokenTTL = time.Hour
-	cfg.ACLPolicyTTL = time.Hour
-	cfg.DisableRemoteExec = true
-	cfg.RPCHoldTimeout = 5 * time.Second
+	clientCfg.ConsulConfigs = map[string]*structsc.ConsulConfig{structs.ConsulDefaultCluster: structsc.DefaultConsulConfig()}
+	clientCfg.VaultConfigs = map[string]*structsc.VaultConfig{structs.VaultDefaultCluster: {Enabled: pointer.Of(false)}}
+	clientCfg.StatsCollectionInterval = 10 * time.Second
+	clientCfg.TLSConfig = tlsConfig
+	clientCfg.GCInterval = time.Hour
+	clientCfg.GCParallelDestroys = 1
+	clientCfg.GCDiskUsageThreshold = 100.0
+	clientCfg.GCInodeUsageThreshold = 100.0
+	clientCfg.GCMaxAllocs = 10_000
+	clientCfg.NoHostUUID = true
+	clientCfg.ACLEnabled = false //TODO expose option
+	clientCfg.ACLTokenTTL = time.Hour
+	clientCfg.ACLPolicyTTL = time.Hour
+	clientCfg.DisableRemoteExec = true
+	clientCfg.RPCHoldTimeout = 5 * time.Second
 
-	pluginLoader := pluginsim.New(cfg.Logger, "loader")
-	cfg.PluginLoader = pluginLoader
-	cfg.PluginSingletonLoader = singleton.NewSingletonLoader(cfg.Logger, pluginLoader)
+	pluginLoader := pluginsim.New(clientCfg.Logger, "loader")
+	clientCfg.PluginLoader = pluginLoader
+	clientCfg.PluginSingletonLoader = singleton.NewSingletonLoader(clientCfg.Logger, pluginLoader)
 
-	cfg.StateDBFactory = state.GetStateDBFactory(false) // store state!
-	cfg.NomadServiceDiscovery = true
+	clientCfg.StateDBFactory = state.GetStateDBFactory(false) // store state!
+	clientCfg.NomadServiceDiscovery = true
 	//TODO TemplateDialer: could proxy to the server's address?
-	cfg.Artifact = &config.ArtifactConfig{
+	clientCfg.Artifact = &config.ArtifactConfig{
 		HTTPReadTimeout: 5 * time.Second,
 		GCSTimeout:      5 * time.Second,
 		GitTimeout:      5 * time.Second,
@@ -277,8 +283,8 @@ func startClient(id string, logger *slog.Logger, parentDir, server string, build
 		S3Timeout:       5 * time.Second,
 	}
 
-	cfg.Node.Canonicalize()
-	cfg.AllocRunnerFactory = allocrunnersim.NewEmptyAllocRunnerFunc
+	clientCfg.Node.Canonicalize()
+	clientCfg.AllocRunnerFactory = allocrunnersim.NewEmptyAllocRunnerFunc
 
 	// Consul support is disabled
 	capi := simconsul.NoopCatalogAPI{}
@@ -286,7 +292,7 @@ func startClient(id string, logger *slog.Logger, parentDir, server string, build
 	cproxiesFn := func(cluster string) consul.SupportedProxiesAPI { return consulProxies[cluster] }
 	serviceReg := simconsul.NoopServiceRegHandler{}
 
-	c, err := client.NewClient(cfg, capi, cproxiesFn, serviceReg, nil)
+	c, err := client.NewClient(clientCfg, capi, cproxiesFn, serviceReg, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating client: %w", err)
 	}
