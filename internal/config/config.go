@@ -33,6 +33,7 @@ type Config struct {
 	// to allocate 0.8MHz of CPU and 0.7MiB of memory per client instance.
 	NodeNum int `hcl:"node_num,optional"`
 
+	Log  *Log  `hcl:"log,block"`
 	Node *Node `hcl:"node,block"`
 }
 
@@ -63,6 +64,11 @@ func Default() *Config {
 		NodeNamePrefix: fmt.Sprintf("node-%s", uuid.Short()),
 		ServerAddr:     "127.0.0.1:4647",
 		NodeNum:        1,
+		Log: &Log{
+			Level:           "debug",
+			JSON:            false,
+			IncludeLocation: false,
+		},
 		Node: &Node{
 			Region:     "global",
 			Datacenter: "dc1",
@@ -90,6 +96,9 @@ func (c *Config) Merge(z *Config) *Config {
 	}
 	if z.NodeNum > 0 {
 		result.NodeNum = z.NodeNum
+	}
+	if z.Log != nil {
+		result.Log = c.Log.merge(z.Log)
 	}
 	if z.Node != nil {
 		result.Node = c.Node.merge(z.Node)

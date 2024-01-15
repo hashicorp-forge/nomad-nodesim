@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"runtime/debug"
 
+	"github.com/hashicorp/go-hclog"
 	goVersion "github.com/hashicorp/go-version"
-	"golang.org/x/exp/slog"
 )
 
 type BuildInfo struct {
@@ -18,7 +18,7 @@ type NomadBuildInfo struct {
 	Version string
 }
 
-func GenerateBuildInfo(logger *slog.Logger) (*BuildInfo, error) {
+func GenerateBuildInfo(logger hclog.Logger) (*BuildInfo, error) {
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
 		return nil, fmt.Errorf("failed to read build info")
@@ -35,7 +35,7 @@ func GenerateBuildInfo(logger *slog.Logger) (*BuildInfo, error) {
 // identifyNomadDependencyVersion takes the passed debug build information and
 // provides the Nomad version dependency. If the dependency is not found, a
 // default of 0.8.0 will be returned.
-func identifyNomadDependencyVersion(logger *slog.Logger, debugInfo *debug.BuildInfo) string {
+func identifyNomadDependencyVersion(logger hclog.Logger, debugInfo *debug.BuildInfo) string {
 
 	// When performing client RPCs, the Nomad server uses the
 	// nomad.nodeSupportsRpc to determine if the client agent is at a version
