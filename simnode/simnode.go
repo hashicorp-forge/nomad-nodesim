@@ -4,19 +4,19 @@
 package simnode
 
 import (
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad/client"
-	"golang.org/x/exp/slog"
 )
 
 type Node struct {
 	Client *client.Client
-	logger *slog.Logger
+	logger hclog.Logger
 }
 
-func New(c *client.Client, pl *slog.Logger) *Node {
+func New(c *client.Client, logger hclog.Logger) *Node {
 	return &Node{
 		Client: c,
-		logger: pl.With("node", c.NodeID()),
+		logger: logger.With("node", c.NodeID()),
 	}
 }
 

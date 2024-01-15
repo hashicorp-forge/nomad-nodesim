@@ -29,19 +29,26 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 	structsc "github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/hashicorp/nomad/version"
-	"golang.org/x/exp/slog"
 )
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	var flagConfig internalConfig.Config
+	flagConfig := internalConfig.Config{
+		Log:  &internalConfig.Log{},
+		Node: &internalConfig.Node{},
+	}
 
 	flag.StringVar(&flagConfig.WorkDir, "work-dir", "", "working directory")
 	flag.StringVar(&flagConfig.ServerAddr, "server-addr", "", "address of server's rpc port")
 	flag.StringVar(&flagConfig.NodeNamePrefix, "node-name-prefix", "", "nodes will be named [prefix]-[i]")
 	flag.IntVar(&flagConfig.NodeNum, "node-num", 0, "number of client nodes")
+
+	// The CLI flags for the HCL Logger.
+	flag.StringVar(&flagConfig.Log.Level, "log-level", "", "the verbosity level of logs")
+	flag.BoolVar(&flagConfig.Log.JSON, "log-json", false, "output logs in a JSON format")
+	flag.BoolVar(&flagConfig.Log.IncludeLocation, "log-include-location", false, "include file and line information in each log line")
 
 	var configFile string
 	flag.StringVar(&configFile, "config", "", "path to a config file to load")
@@ -64,8 +71,13 @@ func main() {
 
 	mergedConfig = mergedConfig.Merge(&flagConfig)
 
-	handler := slog.NewTextHandler(os.Stdout, nil)
-	logger := slog.New(handler)
+	// Build the logger used by the nodesim application.
+	logger := hclog.NewInterceptLogger(&hclog.LoggerOptions{
+		Name:            "nomad-nodesim",
+		Level:           hclog.LevelFromString(mergedConfig.Log.Level),
+		JSONFormat:      mergedConfig.Log.JSON,
+		IncludeLocation: mergedConfig.Log.IncludeLocation,
+	})
 
 	logger.Info("config",
 		"dir", mergedConfig.WorkDir, "num", mergedConfig.NodeNum, "server", mergedConfig.ServerAddr,
@@ -134,7 +146,7 @@ func main() {
 	logger.Info("done")
 }
 
-func startClient(logger *slog.Logger, buildInfo *internalSimnode.BuildInfo, cfg *internalConfig.Config, iter int) (*simnode.Node, error) {
+func startClient(logger hclog.Logger, buildInfo *internalSimnode.BuildInfo, cfg *internalConfig.Config, iter int) (*simnode.Node, error) {
 	nodeID := fmt.Sprintf("%s-%v", cfg.NodeNamePrefix, iter)
 	rootDir := filepath.Join(cfg.WorkDir, nodeID)
 	if err := os.MkdirAll(rootDir, 0750); err != nil {
