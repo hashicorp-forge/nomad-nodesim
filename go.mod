@@ -1,10 +1,12 @@
-module github.com/schmichael/nomad-nodesim
+module github.com/hashicorp-forge/nomad-nodesim
 
 go 1.21
 
 require (
 	github.com/hashicorp/consul/api v1.26.1
 	github.com/hashicorp/go-hclog v1.5.0
+	github.com/hashicorp/go-version v1.6.0
+	github.com/hashicorp/hcl/v2 v2.14.1
 	github.com/hashicorp/nomad v1.7.1
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 )
@@ -116,11 +118,9 @@ require (
 	github.com/hashicorp/go-set/v2 v2.1.0 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.2 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
-	github.com/hashicorp/go-version v1.6.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.1 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-3 // indirect
-	github.com/hashicorp/hcl/v2 v2.14.1 // indirect
 	github.com/hashicorp/mdns v1.0.5 // indirect
 	github.com/hashicorp/memberlist v0.5.0 // indirect
 	github.com/hashicorp/net-rpc-msgpackrpc v0.0.0-20151116020338-a14192a58a69 // indirect
