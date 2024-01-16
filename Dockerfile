@@ -15,6 +15,8 @@ RUN go build -o nomad-nodesim .
 FROM debian:stable AS dev
 
 RUN apt update
-RUN apt install -y iproute2
+RUN apt install -y \
+    iptables \
+    iproute2
 
 COPY --from=devbuild /build/nomad-nodesim /bin/
