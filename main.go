@@ -205,6 +205,7 @@ func startClient(logger hclog.Logger, buildInfo *internalSimnode.BuildInfo, cfg 
 		Datacenter: cfg.Node.Datacenter,
 		Name:       nodeID,
 		NodePool:   cfg.Node.NodePool,
+		NodeClass:  cfg.Node.NodeClass,
 		HTTPAddr:   "127.0.0.1:4646", // is this used? -- yes in the UI!
 		TLSEnabled: tlsEnabled,
 		Attributes: map[string]string{}, //TODO expose option? fake linux?
@@ -249,7 +250,6 @@ func startClient(logger hclog.Logger, buildInfo *internalSimnode.BuildInfo, cfg 
 			"simnode_version": buildInfo.Version,
 			"simnode_sum":     buildInfo.Sum,
 		},
-		//TODO NodeClass expose option?
 		CSIControllerPlugins: make(map[string]*structs.CSIInfo),
 		CSINodePlugins:       make(map[string]*structs.CSIInfo),
 		HostVolumes:          make(map[string]*structs.ClientHostVolumeConfig),
