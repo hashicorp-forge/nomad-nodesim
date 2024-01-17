@@ -48,6 +48,7 @@ type Node struct {
 	Region     string `hcl:"region,optional"`
 	Datacenter string `hcl:"datacenter,optional"`
 	NodePool   string `hcl:"node_pool,optional"`
+	NodeClass  string `hcl:"node_class,optional"`
 
 	// Options is a list of Nomad client options mapping as described:
 	// https://developer.hashicorp.com/nomad/docs/configuration/client#options
@@ -76,6 +77,7 @@ func Default() *Config {
 			Region:     "global",
 			Datacenter: "dc1",
 			NodePool:   "default",
+			NodeClass:  "",
 			Options:    map[string]string{},
 		},
 	}
@@ -125,6 +127,9 @@ func (n *Node) merge(z *Node) *Node {
 	}
 	if z.NodePool != "" {
 		result.NodePool = z.NodePool
+	}
+	if z.NodeClass != "" {
+		result.NodeClass = z.NodeClass
 	}
 	if z.Options != nil {
 		for k, v := range z.Options {
