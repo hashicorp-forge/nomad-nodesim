@@ -41,7 +41,7 @@ func main() {
 	}
 
 	flag.StringVar(&flagConfig.WorkDir, "work-dir", "", "working directory")
-	flag.StringVar(&flagConfig.ServerAddr, "server-addr", "", "address of server's rpc port")
+	flag.Var(&flagConfig.ServerAddr, "server-addr", "address of server's rpc port; can be specified multiple times")
 	flag.StringVar(&flagConfig.NodeNamePrefix, "node-name-prefix", "", "nodes will be named [prefix]-[i]")
 	flag.IntVar(&flagConfig.NodeNum, "node-num", 0, "number of client nodes")
 
@@ -184,12 +184,7 @@ func startClient(logger hclog.Logger, buildInfo *internalSimnode.BuildInfo, cfg 
 
 	clientCfg.MaxKillTimeout = time.Minute
 
-	//FIXME inject servers?
-	if cfg.ServerAddr != "" {
-		clientCfg.Servers = []string{cfg.ServerAddr}
-	} else {
-		clientCfg.Servers = []string{}
-	}
+	clientCfg.Servers = cfg.ServerAddr
 
 	tlsConfig := tlsConfigFromEnv()
 	tlsEnabled := true

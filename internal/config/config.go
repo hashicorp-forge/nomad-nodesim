@@ -27,9 +27,9 @@ type Config struct {
 	// generating the simulated client name and ID.
 	NodeNamePrefix string `hcl:"node_name_prefix,optional"`
 
-	// ServerAddr is the RPC address of a Nomad server which will be used to
-	// set up the clients initial registration contact.
-	ServerAddr string `hcl:"server_addr,optional"`
+	// ServerAddr is a slice of server RPC addresses which will be used for the
+	// clients initial registration.
+	ServerAddr arrayFlagVar `hcl:"server_addr,optional"`
 
 	// NodeNum is the number of Nomad clients/nodes that will be started within
 	// this single nodesim process. Some basic testing indicates you will need
@@ -66,7 +66,7 @@ func Default() *Config {
 	return &Config{
 		WorkDir:        fmt.Sprintf("nomad-nodesim-%d", os.Getpid()),
 		NodeNamePrefix: fmt.Sprintf("node-%s", uuid.Short()),
-		ServerAddr:     "127.0.0.1:4647",
+		ServerAddr:     []string{"127.0.0.1:4647"},
 		NodeNum:        1,
 		Log: &Log{
 			Level:           "debug",
@@ -96,7 +96,7 @@ func (c *Config) Merge(z *Config) *Config {
 	if z.NodeNamePrefix != "" {
 		result.NodeNamePrefix = z.NodeNamePrefix
 	}
-	if z.ServerAddr != "" {
+	if len(z.ServerAddr) > 0 {
 		result.ServerAddr = z.ServerAddr
 	}
 	if z.NodeNum > 0 {
