@@ -62,6 +62,7 @@ func (ar *simulatedAllocRunner) Run() {
 		for _, task := range ar.taskNamesLocked() {
 			ar.allocState.TaskStates[task] = structs.NewTaskState()
 			ar.allocState.TaskStates[task].StartedAt = time.Now()
+			ar.allocState.TaskStates[task].State = structs.TaskStateRunning
 		}
 
 		ar.appendTaskEventForLocked(structs.TaskSetup)
@@ -164,9 +165,6 @@ func (ar *simulatedAllocRunner) AllocState() *state.State {
 
 func (ar *simulatedAllocRunner) PersistState() error           { return nil }
 func (ar *simulatedAllocRunner) AcknowledgeState(*state.State) {}
-func (ar *simulatedAllocRunner) LastAcknowledgedStateIsCurrent(*structs.Allocation) bool {
-	return false
-}
 
 func (ar *simulatedAllocRunner) SetClientStatus(status string) {
 	ar.allocLock.Lock()
