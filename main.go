@@ -95,21 +95,29 @@ func main() {
 	}
 
 	handles := make([]*simnode.Node, mergedConfig.NodeNum)
+
 	for i := 0; i < mergedConfig.NodeNum; i++ {
-		handles[i], err = startClient(logger, buildInfo, mergedConfig, i)
-		if err != nil {
-			// Startup errors are fatal
-			err = fmt.Errorf("error creating client %d: %w", i, err)
+
+		nodeName := fmt.Sprintf("%s-%v", mergedConfig.NodeNamePrefix, i)
+
+		// Start the simulate client; any error starting any client is
+		// considered fatal to the nodesim application.
+		if handles[i], err = startClient(logger, buildInfo, mergedConfig, nodeName); err != nil {
+			err = fmt.Errorf("error creating client %s: %w", nodeName, err)
 			break
 		}
-		logger.Info("started", "i", i, "total", mergedConfig.NodeNum)
+
+		logger.Info("started client",
+			"node_id", handles[i].Client.NodeID(), "node_name", nodeName,
+			"index", i+1, "total", mergedConfig.NodeNum)
+
 		if err = ctx.Err(); err != nil {
 			break
 		}
 	}
 
 	if err != nil {
-		logger.Error("error creating clients. cleaning up", err)
+		logger.Error("error creating clients", "error", err)
 		wg := &sync.WaitGroup{}
 		for _, h := range handles {
 			if h == nil {
@@ -119,7 +127,7 @@ func main() {
 			go func(n *simnode.Node) {
 				defer wg.Done()
 				if err := n.Shutdown(); err != nil {
-					logger.Warn("error shutting down cliet node", "err", err, "node", n.Client.NodeID())
+					logger.Warn("error shutting down client node", "error", err, "node_id", n.Client.NodeID())
 				}
 			}(h)
 		}
@@ -128,7 +136,7 @@ func main() {
 		os.Exit(10)
 	}
 
-	logger.Info("clients started")
+	logger.Info("clients started", "total", mergedConfig.NodeNum)
 
 	<-ctx.Done()
 	logger.Info("interrupted; shutting down clients")
@@ -138,7 +146,7 @@ func main() {
 		go func(n *simnode.Node) {
 			defer wg.Done()
 			if err := n.Shutdown(); err != nil {
-				logger.Warn("error shutting down cliet node", "err", err, "node", n.Client.NodeID())
+				logger.Warn("error shutting down client node", "error", err, "node", n.Client.NodeID())
 			}
 		}(h)
 	}
@@ -146,9 +154,8 @@ func main() {
 	logger.Info("done")
 }
 
-func startClient(logger hclog.Logger, buildInfo *internalSimnode.BuildInfo, cfg *internalConfig.Config, iter int) (*simnode.Node, error) {
-	nodeID := fmt.Sprintf("%s-%v", cfg.NodeNamePrefix, iter)
-	rootDir := filepath.Join(cfg.WorkDir, nodeID)
+func startClient(logger hclog.Logger, buildInfo *internalSimnode.BuildInfo, cfg *internalConfig.Config, nodeName string) (*simnode.Node, error) {
+	rootDir := filepath.Join(cfg.WorkDir, nodeName)
 	if err := os.MkdirAll(rootDir, 0750); err != nil {
 		return nil, fmt.Errorf("error creating client dir: %w", err)
 	}
@@ -164,7 +171,7 @@ func startClient(logger hclog.Logger, buildInfo *internalSimnode.BuildInfo, cfg 
 	clientCfg.AllocDir = filepath.Join(rootDir, "allocs")
 
 	hclogopts := &hclog.LoggerOptions{
-		Name:            nodeID,
+		Name:            nodeName,
 		Level:           hclog.Trace,
 		Output:          logout,
 		JSONFormat:      false, //TODO expose option?
@@ -195,10 +202,8 @@ func startClient(logger hclog.Logger, buildInfo *internalSimnode.BuildInfo, cfg 
 
 	//TODO
 	clientCfg.Node = &structs.Node{
-		ID:         nodeID,
-		SecretID:   nodeID + "secret", //lol
 		Datacenter: cfg.Node.Datacenter,
-		Name:       nodeID,
+		Name:       nodeName,
 		NodePool:   cfg.Node.NodePool,
 		NodeClass:  cfg.Node.NodeClass,
 		HTTPAddr:   "127.0.0.1:4646", // is this used? -- yes in the UI!
