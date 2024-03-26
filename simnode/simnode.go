@@ -21,6 +21,6 @@ func New(c *client.Client, logger hclog.Logger) *Node {
 }
 
 func (n *Node) Shutdown() error {
-	n.logger.Debug("shuting down...")
+	n.logger.Debug("shutting down")
 	return n.Client.Shutdown()
 }
