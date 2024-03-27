@@ -298,6 +298,9 @@ func startClient(logger hclog.Logger, buildInfo *internalSimnode.BuildInfo, cfg 
 	clientCfg.Node.Canonicalize()
 	clientCfg.AllocRunnerFactory = allocrunnersim.NewEmptyAllocRunnerFunc
 
+	// Hack to overwrite the NomadCgroupParent global variable in Nomad.
+	hackSetupCgroup(nodeName)
+
 	// Consul support is disabled
 	capi := simconsul.NoopCatalogAPI{}
 	consulProxies := map[string]simconsul.NoopSupportedProxiesAPI{}
