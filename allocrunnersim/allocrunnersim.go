@@ -32,7 +32,7 @@ type simulatedAllocRunner struct {
 func NewEmptyAllocRunnerFunc(conf *config.AllocRunnerConfig) (interfaces.AllocRunner, error) {
 	return &simulatedAllocRunner{
 		c:          conf.StateUpdater,
-		logger:     conf.Logger,
+		logger:     conf.Logger.With("alloc_id", conf.Alloc.ID, "job_id", conf.Alloc.JobID, "namespace", conf.Alloc.Namespace),
 		id:         conf.Alloc.ID,
 		alloc:      conf.Alloc,
 		allocState: &state.State{},
@@ -55,7 +55,7 @@ func (ar *simulatedAllocRunner) taskNamesLocked() []string {
 }
 
 func (ar *simulatedAllocRunner) Run() {
-	ar.logger.Info("running allocation", "alloc_id", ar.id)
+	ar.logger.Info("running allocation")
 
 	ar.updateAllocAndSendUpdate(func(ar *simulatedAllocRunner) {
 		ar.allocState.TaskStates = map[string]*structs.TaskState{}
@@ -123,10 +123,52 @@ func (ar *simulatedAllocRunner) appendTaskEventForLocked(eventType string) {
 }
 
 func (ar *simulatedAllocRunner) Restore() error { return nil }
+
 func (ar *simulatedAllocRunner) Update(update *structs.Allocation) {
+
+	// Be careful with the lock, as further down in we call functions that also
+	// use the lock.
 	ar.allocLock.Lock()
-	defer ar.allocLock.Unlock()
 	ar.alloc = update
+	ar.allocLock.Unlock()
+
+	ar.logger.Info("received allocation update", "desired_status", update.DesiredStatus)
+
+	switch update.DesiredStatus {
+	case structs.AllocDesiredStatusStop:
+		ar.stopAll()
+	default:
+		ar.logger.Warn("unable to handle desired status update", "desired_status", update.DesiredStatus)
+	}
+}
+
+func (ar *simulatedAllocRunner) stopAll() {
+
+	// Modify the task states, so that they report as "dead" meaning they are
+	// terminal.
+	ar.updateAllocAndSendUpdate(func(ar *simulatedAllocRunner) {
+		for _, task := range ar.taskNamesLocked() {
+			ar.allocState.TaskStates[task].FinishedAt = time.Now()
+			ar.allocState.TaskStates[task].State = structs.TaskStateDead
+		}
+		ar.alloc.TaskStates = ar.allocState.TaskStates
+	})
+
+	// Sleep a little, we don't want things to go too fast now, do we?
+	time.Sleep(100 * time.Millisecond)
+
+	// Update the overall allocation status to indicate the tasks have stopped
+	// and the allocation, therefore, is complete.
+	ar.updateAllocAndSendUpdate(func(ar *simulatedAllocRunner) {
+		ar.logger.Debug("tasks are shutdown", "alloc_id", ar.id)
+		ar.appendTaskEventForLocked(structs.TaskKilled)
+		ar.allocState.ClientStatus = structs.AllocClientStatusComplete
+		ar.alloc.ClientStatus = structs.AllocClientStatusComplete
+		ar.alloc.ClientDescription = "All tasks have completed"
+		ar.allocState.ClientDescription = "All tasks have completed"
+	})
+
+	ar.logger.Info("stopped all alloc-runner tasks and marked as complete")
 }
 
 func (ar *simulatedAllocRunner) Reconnect(update *structs.Allocation) error {
