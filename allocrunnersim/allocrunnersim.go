@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/plugins/device"
 	"github.com/hashicorp/nomad/plugins/drivers"
+	"golang.org/x/exp/maps"
 )
 
 type simulatedAllocRunner struct {
@@ -205,8 +206,13 @@ func (ar *simulatedAllocRunner) AllocState() *state.State {
 	return ar.allocState.Copy()
 }
 
-func (ar *simulatedAllocRunner) PersistState() error           { return nil }
-func (ar *simulatedAllocRunner) AcknowledgeState(*state.State) {}
+func (ar *simulatedAllocRunner) PersistState() error { return nil }
+
+func (ar *simulatedAllocRunner) AcknowledgeState(allocState *state.State) {
+	ar.allocLock.Lock()
+	defer ar.allocLock.Unlock()
+	ar.allocState = allocState
+}
 
 func (ar *simulatedAllocRunner) SetClientStatus(status string) {
 	ar.allocLock.Lock()
@@ -231,8 +237,37 @@ func (ar *simulatedAllocRunner) GetTaskDriverCapabilities(taskName string) (*dri
 	return nil, nil
 }
 
-func (ar *simulatedAllocRunner) GetUpdatePriority(_ *structs.Allocation) cstructs.AllocUpdatePriority {
-	return 1
+func (ar *simulatedAllocRunner) GetUpdatePriority(alloc *structs.Allocation) cstructs.AllocUpdatePriority {
+	ar.allocLock.RLock()
+	defer ar.allocLock.RUnlock()
+
+	last := ar.allocState
+	if last == nil {
+		if alloc.ClientStatus == structs.AllocClientStatusFailed {
+			return cstructs.AllocUpdatePriorityUrgent
+		}
+		return cstructs.AllocUpdatePriorityTypical
+	}
+
+	switch {
+	case last.ClientStatus != alloc.ClientStatus:
+		return cstructs.AllocUpdatePriorityUrgent
+	case last.ClientDescription != alloc.ClientDescription:
+		return cstructs.AllocUpdatePriorityTypical
+	case !last.DeploymentStatus.Equal(alloc.DeploymentStatus):
+		return cstructs.AllocUpdatePriorityTypical
+	case !last.NetworkStatus.Equal(alloc.NetworkStatus):
+		return cstructs.AllocUpdatePriorityTypical
+	}
+
+	if !maps.EqualFunc(last.TaskStates, alloc.TaskStates, func(st, o *structs.TaskState) bool {
+		return st.Equal(o)
+
+	}) {
+		return cstructs.AllocUpdatePriorityTypical
+	}
+
+	return cstructs.AllocUpdatePriorityNone
 }
 
 func (ar *simulatedAllocRunner) StatsReporter() interfaces.AllocStatsReporter { return ar }
