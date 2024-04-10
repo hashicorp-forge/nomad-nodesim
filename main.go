@@ -21,6 +21,7 @@ import (
 	"github.com/hashicorp-forge/nomad-nodesim/simnode"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/nomad/client"
+	"github.com/hashicorp/nomad/client/allocrunner"
 	"github.com/hashicorp/nomad/client/config"
 	"github.com/hashicorp/nomad/client/consul"
 	"github.com/hashicorp/nomad/client/state"
@@ -44,6 +45,7 @@ func main() {
 	flag.Var(&flagConfig.ServerAddr, "server-addr", "address of server's rpc port; can be specified multiple times")
 	flag.StringVar(&flagConfig.NodeNamePrefix, "node-name-prefix", "", "nodes will be named [prefix]-[i]")
 	flag.IntVar(&flagConfig.NodeNum, "node-num", 0, "number of client nodes")
+	flag.StringVar(&flagConfig.AllocRunnerType, "alloc-runner-type", "", "the type of Nomad client alloc runner to use")
 
 	// The CLI flags for the HCL Logger.
 	flag.StringVar(&flagConfig.Log.Level, "log-level", "", "the verbosity level of logs")
@@ -281,7 +283,7 @@ func startClient(logger hclog.Logger, buildInfo *internalSimnode.BuildInfo, cfg 
 	clientCfg.DisableRemoteExec = true
 	clientCfg.RPCHoldTimeout = 5 * time.Second
 
-	pluginLoader := pluginsim.New(clientCfg.Logger, "loader")
+	pluginLoader := pluginsim.New(clientCfg.Logger)
 	clientCfg.PluginLoader = pluginLoader
 	clientCfg.PluginSingletonLoader = singleton.NewSingletonLoader(clientCfg.Logger, pluginLoader)
 
@@ -296,8 +298,25 @@ func startClient(logger hclog.Logger, buildInfo *internalSimnode.BuildInfo, cfg 
 		S3Timeout:       5 * time.Second,
 	}
 
+	// This config parameter is used by the taskrunner API hook. The hook will
+	// panic when triggered if this is not set.
+	clientCfg.APIListenerRegistrar = config.NoopAPIListenerRegistrar{}
+
 	clientCfg.Node.Canonicalize()
-	clientCfg.AllocRunnerFactory = allocrunnersim.NewEmptyAllocRunnerFunc
+
+	// Build the allocation runner factory based on whether we want the
+	// simulated (light) or real version.
+	var allocRunnerFactory config.AllocRunnerFactory
+	switch cfg.AllocRunnerType {
+	case internalConfig.AllocRunnerTypeSim:
+		allocRunnerFactory = allocrunnersim.NewEmptyAllocRunnerFunc
+	case internalConfig.AllocRunnerTypeReal:
+		allocRunnerFactory = allocrunner.NewAllocRunner
+	default:
+		return nil, fmt.Errorf("unsupported alloc-runner type: %s", cfg.AllocRunnerType)
+	}
+
+	clientCfg.AllocRunnerFactory = allocRunnerFactory
 
 	// Consul support is disabled
 	capi := simconsul.NoopCatalogAPI{}
