@@ -36,9 +36,25 @@ type Config struct {
 	// to allocate 0.8MHz of CPU and 0.7MiB of memory per client instance.
 	NodeNum int `hcl:"node_num,optional"`
 
+	// AllocRunnerType defines what alloc-runner nodesim will build. It
+	// supports either the basic simulated runner included within this
+	// application, or the "real" one pulled directly from Nomad.
+	AllocRunnerType string `hcl:"alloc_runner_type,optional"`
+
 	Log  *Log  `hcl:"log,block"`
 	Node *Node `hcl:"node,block"`
 }
+
+const (
+	// AllocRunnerTypeSim is the simulated alloc runner included within nodesim
+	// under the package allocrunnersim.
+	AllocRunnerTypeSim = "sim"
+
+	// AllocRunnerTypeReal is the alloc runner which is set up from the Nomad
+	// codebase directly. This implements the task runner and hooks for a real
+	// client experience.
+	AllocRunnerTypeReal = "real"
+)
 
 // Node is the configuration object that is used to configure the Nomad clients
 // that are instantiated by simnode. It contains a small subset of parameters
@@ -64,10 +80,11 @@ type Node struct {
 // merging user supplied data.
 func Default() *Config {
 	return &Config{
-		WorkDir:        fmt.Sprintf("nomad-nodesim-%d", os.Getpid()),
-		NodeNamePrefix: fmt.Sprintf("node-%s", uuid.Short()),
-		ServerAddr:     []string{"127.0.0.1:4647"},
-		NodeNum:        1,
+		WorkDir:         fmt.Sprintf("nomad-nodesim-%d", os.Getpid()),
+		NodeNamePrefix:  fmt.Sprintf("node-%s", uuid.Short()),
+		ServerAddr:      []string{"127.0.0.1:4647"},
+		NodeNum:         1,
+		AllocRunnerType: AllocRunnerTypeSim,
 		Log: &Log{
 			Level:           "debug",
 			JSON:            false,
@@ -101,6 +118,9 @@ func (c *Config) Merge(z *Config) *Config {
 	}
 	if z.NodeNum > 0 {
 		result.NodeNum = z.NodeNum
+	}
+	if z.AllocRunnerType != "" {
+		result.AllocRunnerType = z.AllocRunnerType
 	}
 	if z.Log != nil {
 		result.Log = c.Log.merge(z.Log)

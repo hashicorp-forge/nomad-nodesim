@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/nomad/helper/pluginutils/loader"
 )
 
-func New(logger hclog.Logger, name string) *loader.PluginLoader {
+func New(logger hclog.Logger) *loader.PluginLoader {
 
 	loader, err := setupPluginLoader(logger)
 	if err != nil {
