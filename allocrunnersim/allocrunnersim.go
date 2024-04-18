@@ -174,6 +174,24 @@ func (ar *simulatedAllocRunner) Run() {
 	ar.allocStateLock.Unlock()
 
 	ar.updateAllocAndSendUpdate(taskStates)
+
+	// Who wants to live forever?
+	//
+	// Batch and sysbatch jobs certainly don't, so after a little pause to
+	// simulate the allocation has done something, we stop it. This is useful
+	// for load testing, as we can continually dispatch jobs, without nodes
+	// becoming resource exhausted and still use the lighter-weight simulated
+	// alloc-runner.
+	//
+	// Other job types which are meant to run forever, must be stopped by a
+	// user initiated command.
+	switch ar.alloc.Job.Type {
+	case structs.JobTypeBatch, structs.JobTypeSysBatch:
+		go func() {
+			time.Sleep(5 * time.Second)
+			ar.stopAll()
+		}()
+	}
 }
 
 // updateAllocAndSendUpdate is a small helper that builds a new allocation
