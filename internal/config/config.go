@@ -73,6 +73,15 @@ type Node struct {
 	// required, or which have lengthy timeouts which can slow client startup
 	// times.
 	Options map[string]string `hcl:"options,optional"`
+
+	Resources *NodeResource `hcl:"resources,block"`
+}
+
+// NodeResource is the CPU and Memory configuration that will be given to the
+// simulated node.
+type NodeResource struct {
+	CPUCompute uint64 `hcl:"cpu_compute,optional"`
+	MemoryMB   uint64 `hcl:"memory_mb,optional"`
 }
 
 // Default returns a default configuration object with all parameters set to
@@ -96,6 +105,10 @@ func Default() *Config {
 			NodePool:   "default",
 			NodeClass:  "",
 			Options:    map[string]string{},
+			Resources: &NodeResource{
+				CPUCompute: 10_000,
+				MemoryMB:   10_000,
+			},
 		},
 	}
 }
@@ -154,6 +167,14 @@ func (n *Node) merge(z *Node) *Node {
 	if z.Options != nil {
 		for k, v := range z.Options {
 			result.Options[k] = v
+		}
+	}
+	if z.Resources != nil {
+		if z.Resources.CPUCompute != 0 {
+			result.Resources.CPUCompute = z.Resources.CPUCompute
+		}
+		if z.Resources.MemoryMB != 0 {
+			result.Resources.MemoryMB = z.Resources.MemoryMB
 		}
 	}
 
