@@ -37,8 +37,10 @@ func main() {
 	defer stop()
 
 	flagConfig := internalConfig.Config{
-		Log:  &internalConfig.Log{},
-		Node: &internalConfig.Node{},
+		Log: &internalConfig.Log{},
+		Node: &internalConfig.Node{
+			Resources: &internalConfig.NodeResource{},
+		},
 	}
 
 	flag.StringVar(&flagConfig.WorkDir, "work-dir", "", "working directory")
@@ -188,8 +190,8 @@ func startClient(logger hclog.Logger, buildInfo *internalSimnode.BuildInfo, cfg 
 
 	// Fake resources
 	clientCfg.NetworkSpeed = 1_000
-	clientCfg.CpuCompute = 10_000
-	clientCfg.MemoryMB = 10_000
+	clientCfg.CpuCompute = int(cfg.Node.Resources.CPUCompute)
+	clientCfg.MemoryMB = int(cfg.Node.Resources.MemoryMB)
 
 	clientCfg.MaxKillTimeout = time.Minute
 

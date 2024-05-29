@@ -117,6 +117,15 @@ config file in [HCL](https://github.com/hashicorp/hcl) format.
 
 - `region` - (`"dc1"`) - Specifies the region of the `nomad-nodesim` clients.
 
+- `resources` - (block) - The CPU and Memory configuration that will be given to the simulated
+  node.
+
+  - `cpu_compute` - (`10_000`)  - The CPU value that the simulated node will be configured with and
+    will represent the total allocatable CPU of the client.
+
+  - `memory_mb` - (`10_000`)  - The memory MB value that the simulated node will be configured with and
+    will represent the total allocatable memory of the client.
+
 - `options` - (`"map[string]string"`) - Specifies a key-value mapping of internal configuration for
   `nomad-nodesim` clients, such as for driver configuration.
 
