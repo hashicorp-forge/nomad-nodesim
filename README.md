@@ -2,10 +2,10 @@
 
 Nomad Client Node Simulator
 
-To install and use you must have Go 1.19+ and run:
+To install and use you must have Go and run:
 
 ```
-go install -v  github.com/schmichael/nomad-nodesim@latest
+go install -v -tags hashicorpmetrics github.com/schmichael/nomad-nodesim@latest
 
 nomad-nodesim -help
 ```
