@@ -43,6 +43,8 @@ type simulatedAllocRunner struct {
 	// lastAcknowledgedState is the alloc runner state that was last
 	// acknowledged by the server. It may lag behind allocState.
 	lastAcknowledgedState *state.State
+
+	pauseState structs.TaskScheduleState
 }
 
 func NewEmptyAllocRunnerFunc(conf *config.AllocRunnerConfig) (interfaces.AllocRunner, error) {
@@ -482,7 +484,18 @@ func (ar *simulatedAllocRunner) GetUpdatePriority(alloc *structs.Allocation) cst
 
 func (ar *simulatedAllocRunner) StatsReporter() interfaces.AllocStatsReporter { return ar }
 func (ar *simulatedAllocRunner) Listener() *cstructs.AllocListener            { return nil }
-func (ar *simulatedAllocRunner) GetAllocDir() *allocdir.AllocDir              { return nil }
+func (ar *simulatedAllocRunner) GetAllocDir() allocdir.Interface              { return nil }
+func (ar *simulatedAllocRunner) GetTaskPauseState(string) (structs.TaskScheduleState, error) {
+	ar.allocLock.RLock()
+	defer ar.allocLock.RUnlock()
+	return ar.pauseState, nil
+}
+func (ar *simulatedAllocRunner) SetTaskPauseState(_ string, state structs.TaskScheduleState) error {
+	ar.allocLock.Lock()
+	defer ar.allocLock.Unlock()
+	ar.pauseState = state
+	return nil
+}
 
 // LatestAllocStats lets this empty runner implement AllocStatsReporter
 func (ar *simulatedAllocRunner) LatestAllocStats(taskFilter string) (*cstructs.AllocResourceUsage, error) {
