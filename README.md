@@ -5,7 +5,7 @@ Nomad Client Node Simulator
 To install and use you must have Go and run:
 
 ```
-go install -v -tags hashicorpmetrics github.com/schmichael/nomad-nodesim@latest
+go install -v -tags hashicorpmetrics github.com/hashicorp-forge/nomad-nodesim@latest
 
 nomad-nodesim -help
 ```
