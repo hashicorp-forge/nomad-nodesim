@@ -3,7 +3,7 @@
 
 # devbuild compiles the binary
 # -----------------------------------
-FROM golang:1.24 AS devbuild
+FROM golang:1.25 AS devbuild
 
 WORKDIR /build
 COPY . ./

@@ -243,11 +243,7 @@ func startClient(logger hclog.Logger, buildInfo *internalSimnode.BuildInfo, cfg 
 			MaxDynamicPort: 3000,
 		},
 		ReservedResources: &structs.NodeReservedResources{},
-		// Resources is deprecated
-		// Reserved is deprecated
-		//FIXME but still used by GCConfig! Fix that in Nomad
-		Reserved: &structs.Resources{},
-		Links:    map[string]string{},
+		Links:             map[string]string{},
 		Meta: map[string]string{
 			"nodesim.id":       cfg.NodeNamePrefix,
 			"nodesim.alloc_id": os.Getenv("NOMAD_ALLOC_ID"),
