@@ -376,8 +376,10 @@ func (ar *simulatedAllocRunner) stopAll() {
 		event.PopulateEventDisplayMessage()
 		taskStates[task.Name].Events = append(taskStates[task.Name].Events, event)
 
+		ar.allocStateLock.Lock()
 		ar.allocState.TaskStates[task.Name].FinishedAt = time.Now()
 		ar.allocState.TaskStates[task.Name].State = structs.TaskStateDead
+		ar.allocStateLock.Unlock()
 	}
 	ar.updateAllocAndSendUpdate(taskStates)
 
