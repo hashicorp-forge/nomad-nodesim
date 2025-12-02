@@ -15,6 +15,7 @@ import (
 	cinterfaces "github.com/hashicorp/nomad/client/interfaces"
 	"github.com/hashicorp/nomad/client/pluginmanager/drivermanager"
 	cstructs "github.com/hashicorp/nomad/client/structs"
+	"github.com/hashicorp/nomad/helper"
 	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/plugins/device"
@@ -160,7 +161,6 @@ func (ar *simulatedAllocRunner) Run() {
 		}
 		event.PopulateEventDisplayMessage()
 		taskStates[task.Name].Events = append(taskStates[task.Name].Events, event)
-
 		taskStates[task.Name].StartedAt = time.Now()
 		taskStates[task.Name].State = structs.TaskStateRunning
 	}
@@ -213,6 +213,7 @@ func (ar *simulatedAllocRunner) clientAlloc(taskStates map[string]*structs.TaskS
 	defer ar.allocStateLock.Unlock()
 
 	// store task states for AllocState to expose
+	taskStates = helper.DeepCopyMap(taskStates)
 	ar.allocState.TaskStates = taskStates
 
 	a := &structs.Allocation{
@@ -345,7 +346,7 @@ func (ar *simulatedAllocRunner) stopAll() {
 	// Ensure we have a current copy of the task states, so that we append and
 	// create a correct and full list.
 	ar.allocStateLock.RLock()
-	taskStates := ar.allocState.TaskStates
+	taskStates := helper.DeepCopyMap(ar.allocState.TaskStates)
 	ar.allocStateLock.RUnlock()
 
 	// Perform the task kill, which essentially is the shutdown notification.
@@ -375,11 +376,8 @@ func (ar *simulatedAllocRunner) stopAll() {
 		}
 		event.PopulateEventDisplayMessage()
 		taskStates[task.Name].Events = append(taskStates[task.Name].Events, event)
-
-		ar.allocStateLock.Lock()
-		ar.allocState.TaskStates[task.Name].FinishedAt = time.Now()
-		ar.allocState.TaskStates[task.Name].State = structs.TaskStateDead
-		ar.allocStateLock.Unlock()
+		taskStates[task.Name].FinishedAt = time.Now()
+		taskStates[task.Name].State = structs.TaskStateDead
 	}
 	ar.updateAllocAndSendUpdate(taskStates)
 
