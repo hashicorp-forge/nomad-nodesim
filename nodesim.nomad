@@ -18,6 +18,11 @@ job "nodesim" {
 
         command = "/bin/nomad-nodesim"
         args = ["-config", "/local/config.hcl"]
+
+	# For use on a linux host
+        volumes = [
+          "/sys/fs/cgroup:/sys/fs/cgroup",
+        ]
       }
 
       template {
