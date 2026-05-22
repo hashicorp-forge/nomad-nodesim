@@ -1,6 +1,16 @@
 # Copyright (c) HashiCorp, Inc.
 # SPDX-License-Identifier: MPL-2.0
 
+variable "num_nodes" {
+  type = string
+  default = 10
+}
+
+variable "servers" {
+  type = list(string)
+  default = ["localhost:4647"]
+}
+
 job "nodesim" {
   datacenters = ["dc1"]
 
@@ -29,8 +39,8 @@ job "nodesim" {
         data = <<EOH
 work_dir         = "/tmp/nomad-nodesim/"
 node_name_prefix = "nodesim"
-server_addr      = ["localhost:4647"]
-node_num         = 10
+server_addr      = ${jsonencode(var.servers)}
+node_num         = ${var.num_nodes}
 
 log {
   level            = "info"
