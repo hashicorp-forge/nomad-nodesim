@@ -1,19 +1,10 @@
 # Copyright (c) HashiCorp, Inc.
 # SPDX-License-Identifier: MPL-2.0
 
-variable "num_nodes" {
-  type = string
-}
-
-variable "server" {
-  type = string
-}
-
 job "nodesim" {
   datacenters = ["dc1"]
 
   group "nodesim" {
-    count = 20
 
     update {
       max_parallel = 3
@@ -22,18 +13,36 @@ job "nodesim" {
     task "nodesim" {
       driver = "docker"
 
-      kill_signal = "SIGINT"
-
       config {
-        image = "schmichael/nomad-nodesim:0.2"
+        image = "hashicorppreview/nomad-nodesim:6cebba3"
 
-        command = "/build/nomad-nodesim"
-        args = [
-          "-dir", "/local",
-          "-num", var.num_nodes,
-          "-server", var.server,
-          "-id", "${NOMAD_SHORT_ALLOC_ID}",
-        ]
+        command = "/bin/nomad-nodesim"
+        args = ["-config", "/local/config.hcl"]
+      }
+
+      template {
+        data = <<EOH
+work_dir         = "/tmp/nomad-nodesim/"
+node_name_prefix = "nodesim"
+server_addr      = ["localhost:4647"]
+node_num         = 10
+
+log {
+  level            = "info"
+  json             = true
+  include_location = true
+}
+
+node {
+  datacenter = "dc1"
+  node_pool  = "default"
+  options = {
+    "fingerprint.denylist" = "env_aws,env_gce,env_azure,env_digitalocean"
+  }
+}
+        EOH
+        destination = "/local/config.hcl"
+        once = true
       }
 
       resources {
