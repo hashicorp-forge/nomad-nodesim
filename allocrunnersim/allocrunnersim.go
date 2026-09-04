@@ -16,7 +16,6 @@ import (
 	"github.com/hashicorp/nomad/client/pluginmanager/drivermanager"
 	cstructs "github.com/hashicorp/nomad/client/structs"
 	"github.com/hashicorp/nomad/helper"
-	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/nomad/structs"
 	"github.com/hashicorp/nomad/plugins/device"
 	"github.com/hashicorp/nomad/plugins/drivers"
@@ -172,7 +171,7 @@ func (ar *simulatedAllocRunner) Run() {
 	ar.logger.Debug("marking deployment as healthy")
 
 	ar.allocStateLock.Lock()
-	ar.allocState.DeploymentStatus = &structs.AllocDeploymentStatus{Healthy: pointer.Of(true), Timestamp: time.Now()}
+	ar.allocState.DeploymentStatus = &structs.AllocDeploymentStatus{Healthy: new(true), Timestamp: time.Now()}
 	ar.allocStateLock.Unlock()
 
 	ar.updateAllocAndSendUpdate(taskStates)
@@ -244,7 +243,7 @@ func (ar *simulatedAllocRunner) clientAlloc(taskStates map[string]*structs.TaskS
 		if a.ClientStatus == structs.AllocClientStatusFailed &&
 			alloc.DeploymentID != "" && !a.DeploymentStatus.HasHealth() {
 			a.DeploymentStatus = &structs.AllocDeploymentStatus{
-				Healthy: pointer.Of(false),
+				Healthy: new(false),
 			}
 		}
 

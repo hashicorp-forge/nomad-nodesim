@@ -26,7 +26,6 @@ import (
 	"github.com/hashicorp/nomad/client/consul"
 	"github.com/hashicorp/nomad/client/state"
 	"github.com/hashicorp/nomad/helper/pluginutils/singleton"
-	"github.com/hashicorp/nomad/helper/pointer"
 	"github.com/hashicorp/nomad/nomad/structs"
 	structsc "github.com/hashicorp/nomad/nomad/structs/config"
 	"github.com/hashicorp/nomad/version"
@@ -112,8 +111,12 @@ func main() {
 		}
 
 		logger.Info("started client",
-			"node_id", handles[i].Client.NodeID(), "node_name", nodeName,
-			"index", i+1, "total", mergedConfig.NodeNum)
+			"nomad_version", buildInfo.Nomad.Version,
+			"node_id", handles[i].Client.NodeID(),
+			"node_name", nodeName,
+			"index", i+1,
+			"total", mergedConfig.NodeNum,
+		)
 
 		if err = ctx.Err(); err != nil {
 			break
@@ -266,7 +269,7 @@ func startClient(logger hclog.Logger, buildInfo *internalSimnode.BuildInfo, cfg 
 		Version: buildInfo.Nomad.Version,
 	}
 	clientCfg.ConsulConfigs = map[string]*structsc.ConsulConfig{structs.ConsulDefaultCluster: structsc.DefaultConsulConfig()}
-	clientCfg.VaultConfigs = map[string]*structsc.VaultConfig{structs.VaultDefaultCluster: {Enabled: pointer.Of(false)}}
+	clientCfg.VaultConfigs = map[string]*structsc.VaultConfig{structs.VaultDefaultCluster: {Enabled: new(false)}}
 	clientCfg.StatsCollectionInterval = 10 * time.Second
 	clientCfg.TLSConfig = tlsConfig
 	clientCfg.GCInterval = time.Hour

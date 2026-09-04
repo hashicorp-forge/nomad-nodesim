@@ -3,10 +3,11 @@
 
 # devbuild compiles the binary
 # -----------------------------------
-FROM golang:1.25 AS devbuild
+FROM golang:1.27 AS devbuild
 
 WORKDIR /build
 COPY . ./
+
 ENV CGO_ENABLED=1
 RUN go build -tags hashicorpmetrics -o nomad-nodesim .
 
